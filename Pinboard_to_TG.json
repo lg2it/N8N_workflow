@@ -1,0 +1,160 @@
+{
+  "name": "Pinboard to TG",
+  "nodes": [
+    {
+      "parameters": {},
+      "name": "Start",
+      "type": "n8n-nodes-base.start",
+      "typeVersion": 1,
+      "position": [
+        220,
+        220
+      ],
+      "id": "c"
+    },
+    {
+      "parameters": {
+        "chatId": "",
+        "text": "=🔖 {{$json[\"description\"]}} #bookmark #pinboard \n\n{{$json[\"href\"]}}\n{{$json[\"tagsHTML\"]}}",
+        "additionalFields": {
+          "parse_mode": "HTML"
+        }
+      },
+      "name": "Telegram",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1,
+      "position": [
+        980,
+        440
+      ],
+      "id": "",
+      "credentials": {
+        "telegramApi": {
+          "id": "",
+          "name": ""
+        }
+      }
+    },
+    {
+      "parameters": {
+        "interval": 5,
+        "unit": "minutes"
+      },
+      "name": "Interval",
+      "type": "n8n-nodes-base.interval",
+      "typeVersion": 1,
+      "position": [
+        240,
+        460
+      ],
+      "id": ""
+    },
+    {
+      "parameters": {
+        "url": "=https://api.pinboard.in/v1/posts/recent?format=json&auth_token=",
+        "options": {},
+        "queryParametersUi": {
+          "parameter": [
+            {
+              "name": "format",
+              "value": "json"
+            }
+          ]
+        }
+      },
+      "name": "HTTP Request",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 1,
+      "position": [
+        460,
+        300
+      ],
+      "id": ""
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "posts",
+        "options": {}
+      },
+      "name": "Item Lists",
+      "type": "n8n-nodes-base.itemLists",
+      "typeVersion": 1,
+      "position": [
+        640,
+        440
+      ],
+      "id": ""
+    },
+    {
+      "parameters": {
+        "functionCode": "/* filter items */\nitems = items.filter(item => item.json.shared === 'yes')\n\n/* only return new items */\nconst staticData = getWorkflowStaticData('global');\nconst lastItemId = staticData.lastItemId;\n\nconsole.log('lastItemId', lastItemId);\nconst firstItem = items[0];\nlet newItems = [];\n\nfunction getId(item) {\n  return item.json.hash;\n}\n\nfunction addProperties(item) {\n  // add new property: tagsHTML\n  item.json.tagsHTML = item.json.tags.split(' ').map(i => `<code>${i}</code>`).join(', ')\n  return item\n}\n\nif (lastItemId) {\n  for (const item of items) {\n    if (getId(item) === lastItemId) {\n      break;\n    }\n    newItems.push(addProperties(item))\n  }\n} else {\n  newItems = [addProperties(firstItem)]\n}\n\nstaticData.lastItemId = getId(firstItem)\nreturn newItems.reverse()"
+      },
+      "name": "Function",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        800,
+        300
+      ],
+      "id": ""
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Interval": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request": {
+      "main": [
+        [
+          {
+            "node": "Item Lists",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Item Lists": {
+      "main": [
+        [
+          {
+            "node": "Function",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Function": {
+      "main": [
+        [
+          {
+            "node": "Telegram",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "e21640d9-72d6-4490-af35-9e70f4be1bbf",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "158ff122da6f7678515e3470d0f7f9d0cc916bb0c02d85dd75d681858d4de1d8"
+  },
+  "id": "",
+  "tags": []
+}

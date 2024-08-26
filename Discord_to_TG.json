@@ -1,0 +1,169 @@
+{
+  "nodes": [
+    {
+      "parameters": {
+        "operation": "getAll",
+        "guildId": {
+          "value": ""
+        },
+        "options": {},
+        "resource": "message",
+        "channelId": {
+          "value": ""
+        },
+        "limit": 1
+      },
+      "id": "",
+      "name": "Discord",
+      "type": "n8n-nodes-base.discord",
+      "typeVersion": 2,
+      "position": [320, 240]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Check if message has already been sent\nconst sentMessages = $getWorkflowStaticData('global').sentMessages || [];\nconst newMessages = $input.all().filter(item => !sentMessages.includes(item.json.id));\n\n// Update sent messages list\nif (newMessages.length > 0) {\n  $getWorkflowStaticData('global').sentMessages = [\n    ...sentMessages,\n    ...newMessages.map(item => item.json.id)\n  ].slice(-100); // Keep only last 100 message IDs\n}\n\nreturn newMessages;"
+      },
+      "id": "check-sent-messages",
+      "name": "Check Sent Messages",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [540, 240]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Process message content and attachments\nfor (const item of $input.all()) {\n  item.json.processedContent = item.json.content;\n  \n  // Check for image attachments\n  if (item.json.attachments && item.json.attachments.length > 0) {\n    const imageAttachment = item.json.attachments.find(a => a.content_type.startsWith('image/'));\n    if (imageAttachment) {\n      item.json.imageUrl = imageAttachment.url;\n    }\n  }\n}\n\nreturn $input.all();"
+      },
+      "id": "process-message",
+      "name": "Process Message",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [760, 240]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.imageUrl }}",
+              "operation": "isNotEmpty"
+            }
+          ]
+        }
+      },
+      "id": "if-node",
+      "name": "IF",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [980, 240]
+    },
+    {
+      "parameters": {
+        "operation": "sendPhoto",
+        "chatId": "",
+        "file": "={{ $json.imageUrl }}",
+        "additionalFields": {
+          "caption": "={{ $json.processedContent }}"
+        }
+      },
+      "id": "telegram-photo",
+      "name": "Telegram Photo",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [1200, 160]
+    },
+    {
+      "parameters": {
+        "operation": "sendMessage",
+        "chatId": "",
+        "text": "={{ $json.processedContent }}",
+        "additionalFields": {}
+      },
+      "id": "telegram-text",
+      "name": "Telegram Text",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [1200, 340]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes"
+            }
+          ]
+        }
+      },
+      "id": "",
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [120, 240]
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Discord",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Sent Messages": {
+      "main": [
+        [
+          {
+            "node": "Process Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Discord": {
+      "main": [
+        [
+          {
+            "node": "Check Sent Messages",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process Message": {
+      "main": [
+        [
+          {
+            "node": "IF",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF": {
+      "main": [
+        [
+          {
+            "node": "Telegram Photo",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Telegram Text",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false
+}

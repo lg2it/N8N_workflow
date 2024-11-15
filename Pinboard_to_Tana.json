@@ -1,0 +1,155 @@
+{
+  "name": "Pinboard to Tana",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes"
+            }
+          ]
+        }
+      },
+      "id": "d5324fd6-cc3b-42f2-be84-2e9177b2875d",
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        20,
+        40
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Function节点代码\n/* 首先检查输入数据 */\nif (!items || !Array.isArray(items) || items.length === 0) {\n  // 如果没有数据，返回空数组\n  return [];\n}\n\n/* filter items */\nitems = items.filter(item => item.json && item.json.shared === 'yes');\n\n// 如果过滤后没有数据，返回空数组\nif (items.length === 0) {\n  return [];\n}\n\n/* only return new items */\nconst staticData = $getWorkflowStaticData('global');\nconst lastItemId = staticData.lastItemId;\n\nconst firstItem = items[0];\nlet newItems = [];\n\nfunction getId(item) {\n  return item.json.hash;\n}\n\nfunction transformToTanaFormat(item) {\n  return {\n    nodes: [{\n      name: item.json.description,\n      supertags: [{\n        id: \"YOUR_SUPERTAG_ID\",\n        fields: {\n          URL: item.json.href,\n          \"AI summary\": item.json.extended || \"\"\n        }\n      }]\n    }],\n    targetNodeId: \"INBOX\"\n  };\n}\n\nif (lastItemId) {\n  for (const item of items) {\n    if (getId(item) === lastItemId) {\n      break;\n    }\n    newItems.push(transformToTanaFormat(item));\n  }\n} else {\n  newItems = [transformToTanaFormat(firstItem)];\n}\n\n// 如果没有新项目，返回空数组\nif (newItems.length === 0) {\n  return [];\n}\n\nstaticData.lastItemId = getId(firstItem);\n// 返回包含对象的数组\nreturn [newItems[0]];"
+      },
+      "id": "c1ce53eb-89b4-452c-913c-6b1c885e10d5",
+      "name": "Code",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        560,
+        40
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://europe-west1-tagr-prod.cloudfunctions.net/addToNodeV2",
+        "sendHeaders": true,
+        "specifyHeaders": "json",
+        "jsonHeaders": "{\n  \"Content-Type\": \"application/json\",\n  \"Authorization\": \"Bearer YOUR_TANA_TOKEN\"\n}\n",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"targetNodeId\": \"INBOX\",\n  \"nodes\": [{\n    \"name\": \"{{$json.nodes[0].name}}\",\n    \"supertags\": [{\n      \"id\": \"YOUR_NODE_ID\"\n    }],\n    \"children\": [{\n      \"type\": \"field\",\n      \"attributeId\": \"YOUR_FIELD_ID\",\n      \"children\": [{\n        \"dataType\": \"url\",\n        \"name\": \"{{$json.nodes[0].supertags[0].fields.URL}}\"\n      }]\n    }, {\n      \"type\": \"field\",\n      \"attributeId\": \"YOUR_FIELD_ID\",\n      \"children\": [{\n        \"name\": \"{{$json.nodes[0].supertags[0].fields['AI summary']}}\"\n      }]\n    }]\n  }]\n}",
+        "options": {}
+      },
+      "id": "d066efa4-bb26-4afc-acbd-dedd09497132",
+      "name": "HTTP Request1",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        740,
+        40
+      ]
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "posts",
+        "options": {}
+      },
+      "name": "Item Lists",
+      "type": "n8n-nodes-base.itemLists",
+      "typeVersion": 1,
+      "position": [
+        380,
+        40
+      ],
+      "id": "a7207a5e-2584-4db3-aebc-51db6ec69af3"
+    },
+    {
+      "parameters": {
+        "url": "=https://api.pinboard.in/v1/posts/recent?format=json&auth_token=YOUR_PINBOARD_TOKEN",
+        "options": {},
+        "queryParametersUi": {
+          "parameter": [
+            {
+              "name": "format",
+              "value": "json"
+            }
+          ]
+        }
+      },
+      "name": "HTTP Request",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 1,
+      "position": [
+        200,
+        40
+      ],
+      "id": "d43d05fe-d19a-46e5-a768-32b850291437"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Item Lists": {
+      "main": [
+        [
+          {
+            "node": "Code",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request": {
+      "main": [
+        [
+          {
+            "node": "Item Lists",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Europe/Lisbon",
+    "saveManualExecutions": false,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "versionId": "a0d3ddfa-a44d-4d97-a8c8-5507b9c9583c",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "instanceID"
+  },
+  "id": "nkEJ8OE5Rf7yZ1Ef",
+  "tags": []
+}
